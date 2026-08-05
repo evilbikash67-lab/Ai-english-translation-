@@ -1,0 +1,6 @@
+{
+  "name": "AI Translate Keyboard",
+  "description": "AI-Powered Translate Keyboard & Assistant with Real-time Translation, Voice Input, Clipboard Translate & History",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
