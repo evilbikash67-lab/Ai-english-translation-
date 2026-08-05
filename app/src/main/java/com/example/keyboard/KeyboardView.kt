@@ -5,7 +5,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,9 +27,8 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.AssistChip
@@ -49,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -57,7 +59,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.api.Language
+import com.example.data.KeyboardMode
+import com.example.data.KeyboardThemeId
 import com.example.repository.TranslationRepository
+import com.example.ui.theme.KeyboardThemeHelper
 import kotlinx.coroutines.launch
 
 @Composable
@@ -71,23 +76,42 @@ fun KeyboardView(
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
 
+    var activeThemeId by remember { mutableStateOf(KeyboardThemeId.GLASSMORPHISM) }
+    var currentMode by remember { mutableStateOf(KeyboardMode.STANDARD) }
+
     var isShifted by remember { mutableStateOf(false) }
     var isNumbersMode by remember { mutableStateOf(false) }
+    var isSymbolsMode by remember { mutableStateOf(false) }
+    var showNumberRow by remember { mutableStateOf(true) }
+
     var sourceLang by remember { mutableStateOf(Language.AUTO) }
-    var targetLang by remember { mutableStateOf(Language.SUPPORTED_LANGUAGES[1]) } // Default EN or HI
+    var targetLang by remember { mutableStateOf(Language.SUPPORTED_LANGUAGES[1]) }
     var selectedTone by remember { mutableStateOf<String?>(null) }
 
     var isTranslating by remember { mutableStateOf(false) }
     var translatedSuggestion by remember { mutableStateOf<String?>(null) }
 
-    val row1Keys = if (isNumbersMode) listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
-    else listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p")
+    val themeStyle = remember(activeThemeId) { KeyboardThemeHelper.getThemeStyle(activeThemeId) }
 
-    val row2Keys = if (isNumbersMode) listOf("@", "#", "$", "%", "&", "-", "+", "(", ")", "/")
-    else listOf("a", "s", "d", "f", "g", "h", "j", "k", "l")
+    val numberRow = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
 
-    val row3Keys = if (isNumbersMode) listOf("*", "\"", "'", ":", ";", "!", "?")
-    else listOf("z", "x", "c", "v", "b", "n", "m")
+    val row1Keys = when {
+        isSymbolsMode -> listOf("[", "]", "{", "}", "#", "%", "^", "*", "+", "=")
+        isNumbersMode -> listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
+        else -> listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p")
+    }
+
+    val row2Keys = when {
+        isSymbolsMode -> listOf("_", "\\", "|", "~", "<", ">", "€", "£", "¥", "•")
+        isNumbersMode -> listOf("@", "#", "$", "%", "&", "-", "+", "(", ")", "/")
+        else -> listOf("a", "s", "d", "f", "g", "h", "j", "k", "l")
+    }
+
+    val row3Keys = when {
+        isSymbolsMode -> listOf(".", ",", "?", "!", "'", "\"", "-")
+        isNumbersMode -> listOf("*", "\"", "'", ":", ";", "!", "?")
+        else -> listOf("z", "x", "c", "v", "b", "n", "m")
+    }
 
     fun triggerTranslation() {
         val currentText = inputConnection?.getTextBeforeCursor(300, 0)?.toString() ?: ""
@@ -110,7 +134,7 @@ fun KeyboardView(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = themeStyle.backgroundColor,
         tonalElevation = 8.dp
     ) {
         Column(
@@ -118,7 +142,7 @@ fun KeyboardView(
                 .fillMaxWidth()
                 .padding(vertical = 4.dp, horizontal = 4.dp)
         ) {
-            // --- Top Toolbar & Language Switcher ---
+            // --- Top Toolbar & Features Bar ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -126,13 +150,12 @@ fun KeyboardView(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Language Pill
+                // Language Switcher Pill
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .background(themeStyle.keyBackgroundColor)
                         .clickable {
-                            // Cycle through target languages
                             val list = Language.SUPPORTED_LANGUAGES.filter { it.code != "auto" }
                             val currentIndex = list.indexOfFirst { it.code == targetLang.code }
                             val nextIndex = (currentIndex + 1) % list.size
@@ -145,7 +168,7 @@ fun KeyboardView(
                     Text(
                         text = "${sourceLang.flagEmoji} → ${targetLang.flagEmoji} ${targetLang.name}",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        color = themeStyle.keyTextColor,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -153,15 +176,15 @@ fun KeyboardView(
                         imageVector = Icons.Default.SwapHoriz,
                         contentDescription = "Switch Target Language",
                         modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        tint = themeStyle.keyTextColor
                     )
                 }
 
-                // AI Translate Action Button
+                // AI Action Trigger Button
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.primary)
+                        .background(themeStyle.accentColor)
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             triggerTranslation()
@@ -173,7 +196,7 @@ fun KeyboardView(
                         if (isTranslating) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(14.dp),
-                                color = MaterialTheme.colorScheme.onPrimary,
+                                color = Color.White,
                                 strokeWidth = 2.dp
                             )
                         } else {
@@ -181,33 +204,43 @@ fun KeyboardView(
                                 imageVector = Icons.Default.AutoAwesome,
                                 contentDescription = "AI Translate",
                                 modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onPrimary
+                                tint = Color.White
                             )
                         }
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "AI Translate",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimary,
+                            color = Color.White,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
 
-                // Main App Launcher Icon
-                IconButton(
-                    onClick = onOpenMainApp,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Translate,
-                        contentDescription = "Open App",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Cycle Themes Quick Toggle
+                    IconButton(
+                        onClick = {
+                            val allThemes = KeyboardThemeId.values()
+                            val nextThemeIndex = (activeThemeId.ordinal + 1) % allThemes.size
+                            activeThemeId = allThemes[nextThemeIndex]
+                        },
+                        modifier = Modifier.size(30.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Palette, contentDescription = "Change Theme", tint = themeStyle.accentColor)
+                    }
+
+                    // Open Main App Config
+                    IconButton(
+                        onClick = onOpenMainApp,
+                        modifier = Modifier.size(30.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Translate, contentDescription = "Open App", tint = themeStyle.accentColor)
+                    }
                 }
             }
 
-            // --- Tone Selector Horizontal Strip ---
+            // --- Tone Selector Chips ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -236,23 +269,26 @@ fun KeyboardView(
                             Text(
                                 text = label,
                                 fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) Color.White else themeStyle.keyTextColor
                             )
                         },
                         colors = if (isSelected) {
                             AssistChipDefaults.assistChipColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                labelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                containerColor = themeStyle.accentColor,
+                                labelColor = Color.White
                             )
                         } else {
-                            AssistChipDefaults.assistChipColors()
+                            AssistChipDefaults.assistChipColors(
+                                containerColor = themeStyle.keyBackgroundColor
+                            )
                         },
                         shape = RoundedCornerShape(12.dp)
                     )
                 }
             }
 
-            // --- Real-time Translation Candidate Suggestion Bar ---
+            // --- Translated Suggestion Banner ---
             AnimatedVisibility(
                 visible = translatedSuggestion != null,
                 enter = fadeIn(),
@@ -264,7 +300,8 @@ fun KeyboardView(
                             .fillMaxWidth()
                             .padding(horizontal = 6.dp, vertical = 4.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.tertiaryContainer)
+                            .background(themeStyle.keyBackgroundColor)
+                            .border(1.dp, themeStyle.accentColor, RoundedCornerShape(12.dp))
                             .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -272,21 +309,19 @@ fun KeyboardView(
                         Text(
                             text = suggestion,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            color = themeStyle.keyTextColor,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Row {
-                            // Insert Suggestion
                             Box(
                                 modifier = Modifier
                                     .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.tertiary)
+                                    .background(themeStyle.accentColor)
                                     .clickable {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        // Replace current line with translated text
                                         inputConnection?.deleteSurroundingText(500, 0)
                                         inputConnection?.commitText(suggestion, 1)
                                         translatedSuggestion = null
@@ -294,37 +329,47 @@ fun KeyboardView(
                                     .padding(horizontal = 10.dp, vertical = 4.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = "Insert Text",
-                                        modifier = Modifier.size(14.dp),
-                                        tint = MaterialTheme.colorScheme.onTertiary
-                                    )
+                                    Icon(imageVector = Icons.Default.Check, contentDescription = "Insert", modifier = Modifier.size(14.dp), tint = Color.White)
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "Insert",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onTertiary,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    Text("Insert", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold)
                                 }
                             }
                             Spacer(modifier = Modifier.width(6.dp))
-                            // Copy Suggestion
                             Icon(
                                 imageVector = Icons.Default.ContentCopy,
-                                contentDescription = "Copy Translation",
+                                contentDescription = "Copy",
                                 modifier = Modifier
                                     .size(24.dp)
                                     .clickable {
                                         clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(suggestion))
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     },
-                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                tint = themeStyle.keyTextColor
                             )
                         }
                     }
                 }
+            }
+
+            // --- Dedicated Number Row ---
+            if (showNumberRow && !isNumbersMode && !isSymbolsMode) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    numberRow.forEach { num ->
+                        KeyCell(
+                            text = num,
+                            modifier = Modifier.weight(1f),
+                            backgroundColor = themeStyle.keyBackgroundColor,
+                            contentColor = themeStyle.keyTextColor
+                        ) {
+                            inputConnection?.commitText(num, 1)
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
             }
 
             // --- Keypad Row 1 ---
@@ -335,7 +380,9 @@ fun KeyboardView(
                 row1Keys.forEach { key ->
                     KeyCell(
                         text = if (isShifted) key.uppercase() else key,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        backgroundColor = themeStyle.keyBackgroundColor,
+                        contentColor = themeStyle.keyTextColor
                     ) {
                         val charToCommit = if (isShifted) key.uppercase() else key
                         inputConnection?.commitText(charToCommit, 1)
@@ -355,7 +402,9 @@ fun KeyboardView(
                 row2Keys.forEach { key ->
                     KeyCell(
                         text = if (isShifted) key.uppercase() else key,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        backgroundColor = themeStyle.keyBackgroundColor,
+                        contentColor = themeStyle.keyTextColor
                     ) {
                         val charToCommit = if (isShifted) key.uppercase() else key
                         inputConnection?.commitText(charToCommit, 1)
@@ -376,7 +425,8 @@ fun KeyboardView(
                 KeyCell(
                     text = if (isShifted) "⬆️" else "⇧",
                     modifier = Modifier.weight(1.3f),
-                    backgroundColor = if (isShifted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer
+                    backgroundColor = if (isShifted) themeStyle.accentColor else themeStyle.keyBackgroundColor,
+                    contentColor = if (isShifted) Color.White else themeStyle.keyTextColor
                 ) {
                     isShifted = !isShifted
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -385,7 +435,9 @@ fun KeyboardView(
                 row3Keys.forEach { key ->
                     KeyCell(
                         text = if (isShifted) key.uppercase() else key,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        backgroundColor = themeStyle.keyBackgroundColor,
+                        contentColor = themeStyle.keyTextColor
                     ) {
                         val charToCommit = if (isShifted) key.uppercase() else key
                         inputConnection?.commitText(charToCommit, 1)
@@ -394,11 +446,12 @@ fun KeyboardView(
                     }
                 }
 
-                // Delete Key
+                // Backspace Key
                 KeyCell(
                     icon = Icons.Default.Backspace,
                     modifier = Modifier.weight(1.3f),
-                    backgroundColor = MaterialTheme.colorScheme.surfaceContainer
+                    backgroundColor = themeStyle.keyBackgroundColor,
+                    contentColor = themeStyle.keyTextColor
                 ) {
                     inputConnection?.deleteSurroundingText(1, 0)
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -407,55 +460,94 @@ fun KeyboardView(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // --- Keypad Row 4 (123, Comma, Mic, Spacebar, Period, Enter) ---
+            // --- Keypad Row 4 (Mode, Comma, Mic, Spacebar, Period, Enter) ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Mode Toggle (123 / ABC)
+                // Mode Switcher (123 / ABC / Symbols)
                 KeyCell(
-                    text = if (isNumbersMode) "ABC" else "123",
+                    text = when {
+                        isSymbolsMode -> "ABC"
+                        isNumbersMode -> "=#\\"
+                        else -> "123"
+                    },
                     modifier = Modifier.weight(1.2f),
-                    backgroundColor = MaterialTheme.colorScheme.surfaceContainer
+                    backgroundColor = themeStyle.keyBackgroundColor,
+                    contentColor = themeStyle.keyTextColor
                 ) {
-                    isNumbersMode = !isNumbersMode
+                    if (isSymbolsMode) {
+                        isSymbolsMode = false
+                        isNumbersMode = false
+                    } else if (isNumbersMode) {
+                        isSymbolsMode = true
+                    } else {
+                        isNumbersMode = true
+                    }
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
 
                 // Comma
                 KeyCell(
                     text = ",",
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    backgroundColor = themeStyle.keyBackgroundColor,
+                    contentColor = themeStyle.keyTextColor
                 ) {
                     inputConnection?.commitText(",", 1)
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
 
-                // Mic Voice Input
+                // Voice Mic
                 KeyCell(
                     icon = Icons.Default.Mic,
                     modifier = Modifier.weight(1f),
-                    backgroundColor = MaterialTheme.colorScheme.surfaceContainer
+                    backgroundColor = themeStyle.keyBackgroundColor,
+                    contentColor = themeStyle.keyTextColor
                 ) {
                     onVoiceInputRequest()
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 }
 
-                // Spacebar
-                KeyCell(
-                    text = "${targetLang.flagEmoji} Space",
-                    modifier = Modifier.weight(3.5f),
-                    backgroundColor = MaterialTheme.colorScheme.surfaceContainer
+                // Interactive Spacebar with Cursor Swipe Control
+                Box(
+                    modifier = Modifier
+                        .weight(3.5f)
+                        .padding(2.dp)
+                        .height(42.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(themeStyle.keyBackgroundColor)
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures { change, dragAmount ->
+                                change.consume()
+                                if (dragAmount > 15) {
+                                    inputConnection?.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_DPAD_RIGHT))
+                                } else if (dragAmount < -15) {
+                                    inputConnection?.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_DPAD_LEFT))
+                                }
+                            }
+                        }
+                        .clickable {
+                            inputConnection?.commitText(" ", 1)
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    inputConnection?.commitText(" ", 1)
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    Text(
+                        text = "${targetLang.flagEmoji} NEXUS Space",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = themeStyle.keyTextColor,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
 
                 // Period
                 KeyCell(
                     text = ".",
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    backgroundColor = themeStyle.keyBackgroundColor,
+                    contentColor = themeStyle.keyTextColor
                 ) {
                     inputConnection?.commitText(".", 1)
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -465,8 +557,8 @@ fun KeyboardView(
                 KeyCell(
                     text = "↵",
                     modifier = Modifier.weight(1.2f),
-                    backgroundColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+                    backgroundColor = themeStyle.accentColor,
+                    contentColor = Color.White
                 ) {
                     inputConnection?.commitText("\n", 1)
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
