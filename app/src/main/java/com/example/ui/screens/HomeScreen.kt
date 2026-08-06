@@ -82,6 +82,23 @@ import com.example.data.KeyboardThemeId
 import com.example.ui.MainViewModel
 import com.example.ui.theme.KeyboardThemeHelper
 
+import com.example.keyboard.KeyboardView
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+
+fun isKeyboardEnabledCheck(context: android.content.Context): Boolean {
+    val imm = context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager ?: return false
+    return imm.enabledInputMethodList.any { it.packageName == context.packageName }
+}
+
+fun isKeyboardSelectedCheck(context: android.content.Context): Boolean {
+    val currentIme = Settings.Secure.getString(
+        context.contentResolver,
+        Settings.Secure.DEFAULT_INPUT_METHOD
+    )
+    return currentIme != null && currentIme.contains(context.packageName)
+}
+
 @Composable
 fun HomeScreen(
     viewModel: MainViewModel,
@@ -96,6 +113,12 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
+
+    val isEnabled = remember(context) { isKeyboardEnabledCheck(context) }
+    val isSelected = remember(context) { isKeyboardSelectedCheck(context) }
+
+    var showInAppPreview by remember { mutableStateOf(false) }
+    var testInputText by remember { mutableStateOf("") }
 
     val sourceLang by viewModel.sourceLanguage.collectAsStateWithLifecycle()
     val targetLang by viewModel.targetLanguage.collectAsStateWithLifecycle()
@@ -177,6 +200,28 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // Keyboard Status Indicators
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0x22FFFFFF)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isSelected) "🟢 Keyboard Status: ACTIVE" else if (isEnabled) "🟡 Enabled - Needs Switch" else "🔴 Not Enabled Yet",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (isSelected) Color(0xFF4ADE80) else Color(0xFFFBBF24),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     // Keyboard Setup & Switch Buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -190,7 +235,7 @@ fun HomeScreen(
                                     context.startActivity(intent)
                                 },
                             shape = RoundedCornerShape(16.dp),
-                            color = Color(0x33FFFFFF)
+                            color = if (isEnabled) Color(0x3310B981) else Color(0x33FFFFFF)
                         ) {
                             Row(
                                 modifier = Modifier.padding(12.dp),
@@ -198,14 +243,14 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Settings,
+                                    imageVector = if (isEnabled) Icons.Default.CheckCircle else Icons.Default.Settings,
                                     contentDescription = null,
-                                    tint = Color(0xFF38BDF8),
+                                    tint = if (isEnabled) Color(0xFF34D399) else Color(0xFF38BDF8),
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "1. Enable Keyboard",
+                                    text = if (isEnabled) "1. Enabled ✓" else "1. Enable Keyboard",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold
@@ -221,7 +266,7 @@ fun HomeScreen(
                                     imm?.showInputMethodPicker()
                                 },
                             shape = RoundedCornerShape(16.dp),
-                            color = Color(0x336366F1)
+                            color = if (isSelected) Color(0x3310B981) else Color(0x336366F1)
                         ) {
                             Row(
                                 modifier = Modifier.padding(12.dp),
@@ -229,19 +274,128 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Keyboard,
+                                    imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.Keyboard,
                                     contentDescription = null,
-                                    tint = Color(0xFF818CF8),
+                                    tint = if (isSelected) Color(0xFF34D399) else Color(0xFF818CF8),
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "2. Switch Keyboard",
+                                    text = if (isSelected) "2. Selected ✓" else "2. Switch Keyboard",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- Keyboard Testing & In-App Interactive Preview Card ---
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Keyboard,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Test Typing & Keyboard Open",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // In-app preview toggle button
+                    AssistChip(
+                        onClick = { showInAppPreview = !showInAppPreview },
+                        label = {
+                            Text(
+                                if (showInAppPreview) "Hide Preview" else "Interactive Preview",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (showInAppPreview) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = if (showInAppPreview) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = if (isSelected)
+                        "✅ NEXUS AI Keyboard is set as your default! Tap the field below to bring up the system keyboard."
+                    else
+                        "💡 Tap '2. Switch Keyboard' above to set NEXUS AI as default, or tap 'Interactive Preview' to test the full keyboard directly in this screen!",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedTextField(
+                    value = testInputText,
+                    onValueChange = { testInputText = it },
+                    placeholder = { Text("Tap here to type and open keyboard...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    trailingIcon = {
+                        if (testInputText.isNotEmpty()) {
+                            IconButton(onClick = { testInputText = "" }) {
+                                Text("✕", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                )
+
+                // In-App Interactive Keyboard Render
+                AnimatedVisibility(visible = showInAppPreview) {
+                    Column(modifier = Modifier.padding(top = 16.dp)) {
+                        Text(
+                            text = "⌨️ Live Keyboard Preview (In-App Direct Input)",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+                        ) {
+                            KeyboardView(
+                                inputConnection = null,
+                                repository = viewModel.repository,
+                                onOpenMainApp = { },
+                                onVoiceInputRequest = { }
+                            )
                         }
                     }
                 }
