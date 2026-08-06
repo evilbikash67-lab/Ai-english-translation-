@@ -30,6 +30,12 @@ An AI-powered Android Keyboard application with real-time translation, voice spe
 ### Secrets & API Keys
 Secrets like `GEMINI_API_KEY` and `OPENROUTER_API_KEY` are configured via the **Secrets Panel in AI Studio** or defined in `.env` / `.env.example` and accessed via `BuildConfig`.
 
+### 🔑 Release Build & Signing
+To build a signed release APK or Bundle (`./gradlew assembleRelease`), ensure you provide a keystore file and set the following environment variables:
+- `KEYSTORE_PATH`: Path to your keystore `.jks` file (defaults to `${rootDir}/my-upload-key.jks`).
+- `STORE_PASSWORD`: Keystore password.
+- `KEY_PASSWORD`: Alias key password.
+
 ---
 
 ## 🚀 Quick Start Guide
