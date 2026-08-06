@@ -50,13 +50,11 @@ fun SplashScreen(
             targetValue = 1.0f,
             animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing)
         )
-        glowAnim.animateTo(
-            targetValue = 1.2f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1200),
-                repeatMode = RepeatMode.Reverse
-            )
-        )
+    }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(1500)
+        onContinue()
     }
 
     Box(

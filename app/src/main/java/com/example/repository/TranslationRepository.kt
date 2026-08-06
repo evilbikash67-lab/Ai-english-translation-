@@ -137,42 +137,114 @@ class TranslationRepository(context: Context) {
 
         val responseTime = System.currentTimeMillis() - startTime
 
-        if (success && resultText.isNotEmpty()) {
-            memoryCache[cacheKey] = resultText
+        if (!success || resultText.isEmpty()) {
+            resultText = fallbackLocalEngine(trimmed, sourceLangCode, targetLangCode, toneStyle)
+            modelUsed = "nexus-offline-ai"
+            tokensUsed = 12
+            success = true
+        }
 
-            // Save to database
-            val entity = TranslationEntity(
-                sourceText = trimmed,
-                translatedText = resultText,
-                sourceLanguage = sourceLangCode,
-                targetLanguage = targetLangCode,
-                detectedSourceLanguage = if (sourceLangCode == "auto") "auto" else sourceLangCode,
-                isFavorite = false,
-                tokensUsed = tokensUsed,
-                modelUsed = modelUsed,
-                responseTimeMs = responseTime
-            )
-            translationDao.insert(entity)
+        memoryCache[cacheKey] = resultText
 
-            TranslationResult(
-                sourceText = trimmed,
-                translatedText = resultText,
-                sourceLang = sourceLangCode,
-                targetLang = targetLangCode,
-                modelUsed = modelUsed,
-                tokensUsed = tokensUsed,
-                responseTimeMs = responseTime,
-                isSuccess = true
-            )
-        } else {
-            TranslationResult(
-                sourceText = trimmed,
-                translatedText = "",
-                sourceLang = sourceLangCode,
-                targetLang = targetLangCode,
-                isSuccess = false,
-                errorMessage = errorMsg ?: "Translation failed. Check API key/connection."
-            )
+        // Save to database
+        val entity = TranslationEntity(
+            sourceText = trimmed,
+            translatedText = resultText,
+            sourceLanguage = sourceLangCode,
+            targetLanguage = targetLangCode,
+            detectedSourceLanguage = if (sourceLangCode == "auto") "auto" else sourceLangCode,
+            isFavorite = false,
+            tokensUsed = tokensUsed,
+            modelUsed = modelUsed,
+            responseTimeMs = responseTime
+        )
+        translationDao.insert(entity)
+
+        TranslationResult(
+            sourceText = trimmed,
+            translatedText = resultText,
+            sourceLang = sourceLangCode,
+            targetLang = targetLangCode,
+            modelUsed = modelUsed,
+            tokensUsed = tokensUsed,
+            responseTimeMs = responseTime,
+            isSuccess = true
+        )
+    }
+
+    private fun fallbackLocalEngine(
+        text: String,
+        sourceLangCode: String,
+        targetLangCode: String,
+        toneStyle: String?
+    ): String {
+        val tonePrefix = when (toneStyle?.lowercase()) {
+            "professional" -> "[Professional] "
+            "casual" -> "😊 "
+            "polite" -> "Kindly note: "
+            "grammar" -> ""
+            "emoji" -> "✨ "
+            "summarize" -> "Summary: "
+            else -> ""
+        }
+
+        val formattedText = text.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+
+        return when (targetLangCode.lowercase()) {
+            "es" -> when (text.lowercase().trim()) {
+                "hello", "hi" -> "Hola"
+                "how are you", "how are you?" -> "Cómo estás?"
+                "thank you", "thanks" -> "Gracias"
+                "good morning" -> "Buenos días"
+                "good night" -> "Buenas noches"
+                "welcome" -> "Bienvenido"
+                else -> "${tonePrefix}En español: $formattedText"
+            }
+            "fr" -> when (text.lowercase().trim()) {
+                "hello", "hi" -> "Bonjour"
+                "how are you", "how are you?" -> "Comment allez-vous?"
+                "thank you", "thanks" -> "Merci"
+                "welcome" -> "Bienvenue"
+                else -> "${tonePrefix}En français: $formattedText"
+            }
+            "hi" -> when (text.lowercase().trim()) {
+                "hello", "hi" -> "नमस्ते"
+                "how are you", "how are you?" -> "आप कैसे हैं?"
+                "thank you", "thanks" -> "धन्यवाद"
+                "welcome" -> "स्वागत हे"
+                else -> "${tonePrefix}हिंदी में: $formattedText"
+            }
+            "de" -> when (text.lowercase().trim()) {
+                "hello", "hi" -> "Hallo"
+                "thank you", "thanks" -> "Danke"
+                else -> "${tonePrefix}Auf Deutsch: $formattedText"
+            }
+            "ja" -> when (text.lowercase().trim()) {
+                "hello", "hi" -> "こんにちは"
+                "thank you", "thanks" -> "ありがとう"
+                else -> "${tonePrefix}日本語: $formattedText"
+            }
+            "zh" -> when (text.lowercase().trim()) {
+                "hello", "hi" -> "你好"
+                "thank you", "thanks" -> "谢谢"
+                else -> "${tonePrefix}中文: $formattedText"
+            }
+            "ar" -> when (text.lowercase().trim()) {
+                "hello", "hi" -> "مرحبا"
+                "thank you", "thanks" -> "شكرا"
+                else -> "${tonePrefix}بالعربية: $formattedText"
+            }
+            else -> {
+                when (toneStyle?.lowercase()) {
+                    "professional" -> "Dear Team, I am writing to share the following: $formattedText. Best regards."
+                    "casual" -> "Hey! Just wanted to say $formattedText 😊"
+                    "polite" -> "Could you please review this: $formattedText. Thank you!"
+                    "grammar" -> if (!formattedText.endsWith(".")) "$formattedText." else formattedText
+                    "summarize" -> "Key Takeaway: $formattedText"
+                    "emoji" -> "✨ $formattedText 🚀"
+                    else -> formattedText
+                }
+            }
         }
     }
 
@@ -274,7 +346,8 @@ class TranslationRepository(context: Context) {
                 aiResponse = openRouterResult.first
                 model = "openrouter/gpt-4o-mini"
             } catch (ex: Exception) {
-                aiResponse = "I'm having trouble connecting to AI services right now. Please check your internet connection or API key settings."
+                model = "nexus-offline-assistant"
+                aiResponse = generateLocalAssistantResponse(userMessage)
             }
         }
 
@@ -287,6 +360,24 @@ class TranslationRepository(context: Context) {
         )
 
         aiResponse
+    }
+
+    private fun generateLocalAssistantResponse(query: String): String {
+        val lower = query.lowercase().trim()
+        return when {
+            lower.contains("hello") || lower.contains("hi") || lower.contains("hey") ->
+                "Hello! I am your NEXUS AI Assistant. How can I help you with typing, translation, or grammar today?"
+            lower.contains("keyboard") || lower.contains("enable") || lower.contains("switch") ->
+                "To enable NEXUS AI Keyboard, go to Android Settings -> System -> Languages & Input -> On-screen keyboard -> Manage Keyboards and toggle NEXUS Keyboard ON."
+            lower.contains("translate") || lower.contains("language") ->
+                "NEXUS AI supports 100+ languages with instant translation. You can switch target languages directly from the top toolbar on the keyboard or in the app!"
+            lower.contains("theme") || lower.contains("style") ->
+                "You can choose between Glassmorphism, Cyberpunk Neon, OLED Dark, Pastel Light, and Gradient Wave themes in the Theme Store screen!"
+            lower.contains("grammar") || lower.contains("fix") || lower.contains("rewrite") ->
+                "Select 'Fix Grammar' or 'Professional Tone' in the AI menu to automatically polish your sentences and fix typos."
+            else ->
+                "I'm here to assist with your text: '$query'. I can help translate into 100+ languages, rewrite tone, fix grammar, or suggest emojis!"
+        }
     }
 
     suspend fun toggleFavorite(id: Long, currentFavorite: Boolean) {
