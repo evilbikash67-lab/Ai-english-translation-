@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -52,6 +53,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -74,6 +76,7 @@ fun KeyboardView(
 ) {
     val haptic = LocalHapticFeedback.current
     val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var activeThemeId by remember { mutableStateOf(KeyboardThemeId.GLASSMORPHISM) }
@@ -218,6 +221,17 @@ fun KeyboardView(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Switch Input Method / Keyboard Picker button
+                    IconButton(
+                        onClick = {
+                            val imm = context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+                            imm?.showInputMethodPicker()
+                        },
+                        modifier = Modifier.size(30.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Keyboard, contentDescription = "Switch Keyboard", tint = themeStyle.accentColor)
+                    }
+
                     // Cycle Themes Quick Toggle
                     IconButton(
                         onClick = {

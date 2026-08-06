@@ -99,13 +99,19 @@ fun ApiSettingsScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Custom Gemini API Key", fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
+                Text("OpenRouter API Key (Direct Client Calls)", fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Calls are sent directly from your app to OpenRouter. No external backend required.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+                Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedTextField(
                     value = inputKey,
                     onValueChange = { inputKey = it },
-                    placeholder = { Text("AIzaSy...") },
+                    placeholder = { Text("sk-or-v1-...") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
                     singleLine = true
@@ -118,7 +124,7 @@ fun ApiSettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Save & Validate Key")
+                    Text("Save Client API Key")
                 }
             }
         }

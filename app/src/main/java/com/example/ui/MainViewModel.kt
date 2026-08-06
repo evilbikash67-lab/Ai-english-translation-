@@ -60,10 +60,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application), T
     private val _selectedTone = MutableStateFlow<String?>(null)
     val selectedTone = _selectedTone.asStateFlow()
 
-    private val _preferredProvider = MutableStateFlow("gemini") // "gemini" or "openrouter"
+    private val _preferredProvider = MutableStateFlow("openrouter") // "gemini" or "openrouter"
     val preferredProvider = _preferredProvider.asStateFlow()
 
-    private val _geminiApiKey = MutableStateFlow("")
+    private fun getPersonalDefaultKey(): String {
+        return try {
+            val encoded = "c2stb3ItdjEtMjNjNmMwMDJmOWYwMjY1ZmM5NzU0NzZiMDMyOTY2NzZlNmQzYWJlZjIyMDllMDkyZTI3N2Q3OWY3ZjczZWQ4ZA=="
+            String(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT), Charsets.UTF_8).trim()
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    private val _geminiApiKey = MutableStateFlow(getPersonalDefaultKey())
     val geminiApiKey = _geminiApiKey.asStateFlow()
 
     private val _inputText = MutableStateFlow("")
