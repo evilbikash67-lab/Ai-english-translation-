@@ -41,6 +41,9 @@ jobs:
             base64 -d debug.keystore.base64 > debug.keystore
           fi
 
+      - name: Regenerate Gradle Wrapper
+        run: gradle wrapper
+
       - name: Make gradlew executable
         run: chmod +x gradlew
 
